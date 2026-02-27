@@ -13,7 +13,7 @@ import { CreateNotebookModal } from './components/CreateNotebookModal'
 import type { LLMProvider } from './components/SettingsModal'
 import { generateAIResponse } from './services/llm'
 import { dbService } from './services/db'
-import { MoreVertical, Sparkles } from 'lucide-react'
+import { MoreVertical, Sparkles, Trash2 } from 'lucide-react'
 
 const DEFAULT_NOTEBOOK: Notebook = {
   id: 'default',
@@ -40,6 +40,9 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [notebookSearch, setNotebookSearch] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isChatMenuOpen, setIsChatMenuOpen] = useState(false)
+  const [isLeftPanelVisible, setIsLeftPanelVisible] = useState(true)
+  const [isRightPanelVisible, setIsRightPanelVisible] = useState(true)
 
   // LLM settings state
   const [apiKeys, setApiKeys] = useState<Record<LLMProvider, string>>({ gemini: '', openai: '', claude: '' })
@@ -105,7 +108,7 @@ function App() {
   }, [])
 
   const handleSendMessage = async () => {
-    const newMessage: Message = { role: 'user', content: chatInput }
+    const newMessage: Message = { role: 'user', content: chatInput, timestamp: new Date().toISOString() }
     await dbService.saveMessage(currentNotebookId, newMessage.role, newMessage.content)
 
     // Update local state for immediate feedback
@@ -128,7 +131,7 @@ function App() {
         sources: currentNotebook.sources,
       })
 
-      const aiMessage: Message = { role: 'ai', content: response }
+      const aiMessage: Message = { role: 'ai', content: response, timestamp: new Date().toISOString() }
       await dbService.saveMessage(currentNotebookId, aiMessage.role, aiMessage.content)
 
       setNotebooks(prev => prev.map(nb => {
@@ -148,6 +151,19 @@ function App() {
       setIsProcessing(false)
     }
   }
+
+  const handleClearChat = async () => {
+    if (confirm('Are you sure you want to clear the chat history for this notebook?')) {
+      await dbService.clearMessages(currentNotebookId)
+      setNotebooks(prev => prev.map(nb => {
+        if (nb.id === currentNotebookId) {
+          return { ...nb, messages: [] }
+        }
+        return nb
+      }))
+    }
+  }
+
 
   const handleAddSource = async () => {
     try {
@@ -179,23 +195,20 @@ function App() {
   }
 
   const handleAddNote = async () => {
-    const name = prompt('Enter note title:', 'New Note')
-    if (name) {
-      const newNote: Source = {
-        id: Date.now().toString(),
-        name,
-        type: 'note',
-        content: ''
-      }
-      await dbService.saveSource(newNote, currentNotebookId)
-      setNotebooks(prev => prev.map(nb => {
-        if (nb.id === currentNotebookId) {
-          return { ...nb, sources: [...nb.sources, newNote] }
-        }
-        return nb
-      }))
-      setSelectedSource(newNote)
+    const newNote: Source = {
+      id: Date.now().toString(),
+      name: 'Untitled note',
+      type: 'note',
+      content: ''
     }
+    await dbService.saveSource(newNote, currentNotebookId)
+    setNotebooks(prev => prev.map(nb => {
+      if (nb.id === currentNotebookId) {
+        return { ...nb, sources: [...nb.sources, newNote] }
+      }
+      return nb
+    }))
+    setSelectedSource(newNote)
   }
 
   const handleUpdateSourceContent = async (id: string, content: string) => {
@@ -212,6 +225,56 @@ function App() {
       }
       return nb
     }))
+  }
+
+  const handleDeleteSource = async (id: string) => {
+    await dbService.deleteSource(id)
+    setNotebooks(prev => prev.map(nb => {
+      if (nb.id === currentNotebookId) {
+        return {
+          ...nb,
+          sources: nb.sources.filter(s => s.id !== id)
+        }
+      }
+      return nb
+    }))
+    if (selectedSource?.id === id) {
+      setSelectedSource(null)
+    }
+  }
+
+  const handleUpdateSourceTitle = async (id: string, name: string) => {
+    const source = currentNotebook.sources.find(s => s.id === id)
+    if (source) {
+      await dbService.saveSource({ ...source, name }, currentNotebookId)
+    }
+    setNotebooks(prev => prev.map(nb => {
+      if (nb.id === currentNotebookId) {
+        return {
+          ...nb,
+          sources: nb.sources.map(s => s.id === id ? { ...s, name } : s)
+        }
+      }
+      return nb
+    }))
+  }
+
+  const handleSaveAsNote = async (content: string) => {
+    const newNote: Source = {
+      id: Date.now().toString(),
+      name: 'Saved response',
+      type: 'note',
+      content
+    }
+    await dbService.saveSource(newNote, currentNotebookId)
+    setNotebooks(prev => prev.map(nb => {
+      if (nb.id === currentNotebookId) {
+        return { ...nb, sources: [...nb.sources, newNote] }
+      }
+      return nb
+    }))
+    setSelectedSource(newNote)
+    setIsRightPanelVisible(true)
   }
 
   const handleNewNotebook = () => {
@@ -260,6 +323,11 @@ function App() {
         onSettingsClick={() => setIsSettingsOpen(true)}
         onNewNotebook={handleNewNotebook}
         onLogoClick={() => setViewMode('home')}
+        isLeftPanelVisible={isLeftPanelVisible}
+        onToggleLeftPanel={() => setIsLeftPanelVisible(!isLeftPanelVisible)}
+        isRightPanelVisible={isRightPanelVisible}
+        onToggleRightPanel={() => setIsRightPanelVisible(!isRightPanelVisible)}
+        viewMode={viewMode}
       />
 
       {viewMode === 'home' ? (
@@ -272,21 +340,25 @@ function App() {
         />
       ) : (
         <main className="main-layout">
-          <SourcesPanel
-            sources={currentNotebook.sources}
-            selectedSourceId={selectedSource?.id}
-            onSelectSource={setSelectedSource}
-            onAddSourceClick={() => setIsModalOpen(true)}
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-          />
+          <div className={`side-panel-container left ${!isLeftPanelVisible ? 'collapsed' : ''}`}>
+            <SourcesPanel
+              sources={currentNotebook.sources.filter(s => s.type !== 'note')}
+              selectedSourceId={selectedSource?.type !== 'note' ? selectedSource?.id : undefined}
+              onSelectSource={setSelectedSource}
+              onAddSourceClick={() => setIsModalOpen(true)}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+            />
+          </div>
 
           <div className="panel chat-panel">
-            {selectedSource ? (
+            {selectedSource && selectedSource.type !== 'note' ? (
               <SourceDetailView
                 source={selectedSource}
                 onClose={() => setSelectedSource(null)}
                 onUpdateContent={handleUpdateSourceContent}
+                onUpdateTitle={handleUpdateSourceTitle}
+                onDelete={() => handleDeleteSource(selectedSource.id)}
               />
             ) : (
               <>
@@ -294,7 +366,44 @@ function App() {
                   <h2 style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--text-secondary)' }}>Chat</h2>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <Sparkles size={18} color="var(--text-secondary)" cursor="pointer" />
-                    <MoreVertical size={18} color="var(--text-secondary)" cursor="pointer" />
+                    <div style={{ position: 'relative' }}>
+                      <div
+                        onClick={() => setIsChatMenuOpen(!isChatMenuOpen)}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: isChatMenuOpen ? 'var(--bg-hover)' : 'transparent',
+                          transition: 'background 0.2s',
+                          color: 'var(--text-secondary)'
+                        }}
+                      >
+                        <MoreVertical size={18} />
+                      </div>
+                      {isChatMenuOpen && (
+                        <div className="dropdown-menu" style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          marginTop: '8px',
+                          zIndex: 100
+                        }}>
+                          <button
+                            className="dropdown-item"
+                            onClick={() => {
+                              handleClearChat();
+                              setIsChatMenuOpen(false);
+                            }}
+                            style={{ color: '#ff4444', display: 'flex', alignItems: 'center', gap: '8px' }}
+                          >
+                            <Trash2 size={14} />
+                            Delete Chat History
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -305,12 +414,23 @@ function App() {
                   isProcessing={isProcessing}
                   onChatInputChange={setChatInput}
                   onSendMessage={handleSendMessage}
+                  onSaveAsNote={handleSaveAsNote}
                 />
               </>
             )}
           </div>
 
-          <StudioPanel onAddNoteClick={handleAddNote} />
+          <div className={`side-panel-container right ${!isRightPanelVisible ? 'collapsed' : ''}`}>
+            <StudioPanel
+              notes={currentNotebook.sources.filter(s => s.type === 'note')}
+              selectedNoteId={selectedSource?.type === 'note' ? selectedSource.id : undefined}
+              onSelectNote={setSelectedSource}
+              onAddNoteClick={handleAddNote}
+              onUpdateNoteContent={handleUpdateSourceContent}
+              onUpdateNoteTitle={handleUpdateSourceTitle}
+              onDeleteNote={handleDeleteSource}
+            />
+          </div>
         </main>
       )}
 

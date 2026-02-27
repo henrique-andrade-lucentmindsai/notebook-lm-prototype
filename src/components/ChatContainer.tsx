@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Upload } from 'lucide-react';
+import { Send, Upload, Plus } from 'lucide-react';
 import type { Message, Source } from '../types';
 
 interface ChatContainerProps {
@@ -9,6 +9,7 @@ interface ChatContainerProps {
     isProcessing?: boolean;
     onChatInputChange: (value: string) => void;
     onSendMessage: () => void;
+    onSaveAsNote: (content: string) => void;
 }
 
 export const ChatContainer: React.FC<ChatContainerProps> = ({
@@ -18,9 +19,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     isProcessing = false,
     onChatInputChange,
     onSendMessage,
+    onSaveAsNote,
 }) => {
     const [showMentions, setShowMentions] = React.useState(false);
     const [mentionFilter, setMentionFilter] = React.useState('');
+    const [savedStates, setSavedStates] = React.useState<Record<number, boolean>>({});
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -85,26 +88,110 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         <button className="btn-pill" style={{ marginTop: '12px' }}>Upload a source</button>
                     </div>
                 ) : (
-                    messages.map((message, index) => (
-                        <div
-                            key={index}
-                            className={`message-bubble ${message.role}`}
-                            style={{
-                                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                                maxWidth: '85%',
-                                padding: '12px 16px',
-                                borderRadius: '16px',
-                                backgroundColor: message.role === 'user' ? 'var(--bg-hover)' : 'transparent',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.95rem',
-                                lineHeight: '1.5',
-                                whiteSpace: 'pre-wrap',
-                                border: message.role === 'ai' ? 'none' : '1px solid var(--border-color)',
-                            }}
-                        >
-                            {message.content}
-                        </div>
-                    ))
+                    messages.map((message, index) => {
+                        const showDate = index === 0 || (
+                            message.timestamp && messages[index - 1].timestamp &&
+                            new Date(message.timestamp).toDateString() !== new Date(messages[index - 1].timestamp!).toDateString()
+                        );
+
+                        const dateShort = message.timestamp ? new Date(message.timestamp).toLocaleDateString(undefined, {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric'
+                        }) : '';
+
+                        const timeStr = message.timestamp ? new Date(message.timestamp).toLocaleTimeString(undefined, {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }) : '';
+
+                        return (
+                            <React.Fragment key={index}>
+                                {showDate && dateShort && (
+                                    <div style={{
+                                        textAlign: 'center',
+                                        margin: '24px 0 16px',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-secondary)',
+                                        position: 'relative',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px'
+                                    }}>
+                                        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)', opacity: 0.5 }} />
+                                        {dateShort}
+                                        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)', opacity: 0.5 }} />
+                                    </div>
+                                )}
+                                <div
+                                    className={`message-bubble ${message.role}`}
+                                    style={{
+                                        alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                                        maxWidth: '85%',
+                                        padding: '12px 16px',
+                                        borderRadius: '16px',
+                                        backgroundColor: message.role === 'user' ? 'var(--bg-hover)' : 'transparent',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.95rem',
+                                        lineHeight: '1.5',
+                                        whiteSpace: 'pre-wrap',
+                                        border: message.role === 'ai' ? 'none' : '1px solid var(--border-color)',
+                                        position: 'relative',
+                                        marginBottom: '8px'
+                                    }}
+                                >
+                                    {message.content}
+                                    <div style={{
+                                        fontSize: '0.65rem',
+                                        color: 'var(--text-secondary)',
+                                        marginTop: '6px',
+                                        textAlign: message.role === 'user' ? 'right' : 'left',
+                                        opacity: 0.6
+                                    }}>
+                                        {dateShort && `${dateShort}, `}{timeStr}
+                                    </div>
+                                    {message.role === 'ai' && (
+                                        <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                                            <button
+                                                onClick={() => {
+                                                    onSaveAsNote(message.content);
+                                                    setSavedStates(prev => ({ ...prev, [index]: true }));
+                                                    setTimeout(() => {
+                                                        setSavedStates(prev => ({ ...prev, [index]: false }));
+                                                    }, 3000);
+                                                }}
+                                                style={{
+                                                    background: savedStates[index] ? 'rgba(129, 201, 149, 0.2)' : 'var(--bg-secondary)',
+                                                    border: savedStates[index] ? '1px solid #81c995' : '1px solid var(--border-color)',
+                                                    color: savedStates[index] ? '#81c995' : 'var(--text-secondary)',
+                                                    fontSize: '0.7rem',
+                                                    padding: '4px 8px',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    transition: 'all 0.3s'
+                                                }}
+                                            >
+                                                {savedStates[index] ? (
+                                                    <>
+                                                        <Plus size={12} style={{ transform: 'rotate(45deg)' }} />
+                                                        Saved ✓
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Plus size={12} />
+                                                        Save as note
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </React.Fragment>
+                        );
+                    })
                 )}
                 {isProcessing && (
                     <div className="message-bubble ai" style={{

@@ -9,11 +9,18 @@ export const dbService = {
     async getNotebooks(): Promise<Notebook[]> {
         const notebooks = await ipc.invoke('db:get-notebooks');
         // For each notebook, we need to fetch its sources and messages
-        return Promise.all(notebooks.map(async (nb: any) => ({
-            ...nb,
-            sources: await this.getSources(nb.id),
-            messages: await this.getMessages(nb.id)
-        })));
+        return Promise.all(notebooks.map(async (nb: any) => {
+            const messages = await this.getMessages(nb.id);
+            return {
+                ...nb,
+                sources: await this.getSources(nb.id),
+                messages: messages.map((m: any) => ({
+                    role: m.role,
+                    content: m.content,
+                    timestamp: m.created_at
+                }))
+            };
+        }));
     },
 
     async createNotebook(id: string, name: string): Promise<void> {

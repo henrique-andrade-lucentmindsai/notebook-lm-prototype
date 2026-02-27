@@ -79,7 +79,7 @@ export function deleteSource(id: string) {
 
 // Message Operations
 export function getMessagesForNotebook(notebookId: string) {
-    return db.prepare('SELECT role, content FROM messages WHERE notebook_id = ? ORDER BY id ASC').all(notebookId);
+    return db.prepare('SELECT role, content, created_at FROM messages WHERE notebook_id = ? ORDER BY id ASC').all(notebookId);
 }
 
 export function saveMessage(notebookId: string, role: string, content: string) {

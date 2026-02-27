@@ -66,7 +66,7 @@ function deleteSource(id) {
   return db.prepare("DELETE FROM sources WHERE id = ?").run(id);
 }
 function getMessagesForNotebook(notebookId) {
-  return db.prepare("SELECT role, content FROM messages WHERE notebook_id = ? ORDER BY id ASC").all(notebookId);
+  return db.prepare("SELECT role, content, created_at FROM messages WHERE notebook_id = ? ORDER BY id ASC").all(notebookId);
 }
 function saveMessage(notebookId, role, content) {
   return db.prepare("INSERT INTO messages (notebook_id, role, content) VALUES (?, ?, ?)").run(notebookId, role, content);
@@ -99,6 +99,8 @@ function createWindow() {
     titleBarStyle: "hiddenInset",
     backgroundColor: "#ffffff"
   });
+  win.maximize();
+  win.setMenu(null);
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
