@@ -84,21 +84,25 @@ function App() {
         }
 
         const nbs = await dbService.getNotebooks()
+        console.log('Frontend: Loaded notebooks', nbs)
         const settings = await dbService.getSettings()
+        console.log('Frontend: Loaded settings', settings)
 
         if (nbs.length > 0) {
           setNotebooks(nbs)
           setCurrentNotebookId(nbs[0].id)
         } else {
+          console.log('Frontend: No notebooks found, creating default')
           await dbService.createNotebook('default', 'Untitled notebook')
           setNotebooks([DEFAULT_NOTEBOOK])
         }
 
+        console.log('Frontend: Data load complete. Nb count:', nbs.length);
         setApiKeys(settings.apiKeys)
         setSelectedModels(settings.models)
         setSelectedProvider(settings.selectedProvider)
       } catch (err) {
-        console.error('Failed to initialize data:', err)
+        console.error('CRITICAL: Frontend failed to initialize data:', err)
       } finally {
         setIsLoading(false)
       }

@@ -45,51 +45,62 @@ function createWindow() {
     }
 }
 
-// Initialize Database
-db.initDb()
 
 // --- Database IPC Handlers ---
 
 // Notebooks
 ipcMain.handle('db:get-notebooks', async () => {
-    return db.getAllNotebooks()
+    const res = db.getAllNotebooks()
+    console.log('db:get-notebooks', res.length, 'notebooks found')
+    return res
 })
 
 ipcMain.handle('db:create-notebook', async (_, id: string, name: string) => {
+    console.log('db:create-notebook', id, name)
     return db.createNotebook(id, name)
 })
 
 ipcMain.handle('db:update-notebook-name', async (_, id: string, name: string) => {
+    console.log('db:update-notebook-name', id, name)
     return db.updateNotebookName(id, name)
 })
 
 ipcMain.handle('db:delete-notebook', async (_, id: string) => {
+    console.log('db:delete-notebook', id)
     return db.deleteNotebook(id)
 })
 
 // Sources
 ipcMain.handle('db:get-sources', async (_, notebookId: string) => {
-    return db.getSourcesForNotebook(notebookId)
+    const res = db.getSourcesForNotebook(notebookId)
+    console.log('db:get-sources', notebookId, res.length, 'sources found')
+    return res
 })
 
 ipcMain.handle('db:save-source', async (_, source: any, notebookId: string) => {
+    console.log('db:save-source', notebookId, source.name)
     return db.saveSource(source, notebookId)
 })
 
 ipcMain.handle('db:delete-source', async (_, id: string) => {
+    console.log('db:delete-source', id)
     return db.deleteSource(id)
 })
 
 // Messages
 ipcMain.handle('db:get-messages', async (_, notebookId: string) => {
-    return db.getMessagesForNotebook(notebookId)
+    const res = db.getMessagesForNotebook(notebookId)
+    console.log('db:get-messages', notebookId, res.length, 'messages found')
+    return res
 })
 
 ipcMain.handle('db:save-message', async (_, notebookId: string, role: string, content: string) => {
+    console.log('db:save-message', notebookId, role, content.substring(0, 50))
     return db.saveMessage(notebookId, role, content)
 })
 
 ipcMain.handle('db:clear-messages', async (_, notebookId: string) => {
+    console.log('db:clear-messages', notebookId)
     return db.clearMessages(notebookId)
 })
 
@@ -151,4 +162,7 @@ app.on('activate', () => {
     }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+    db.initDb()
+    createWindow()
+})

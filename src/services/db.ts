@@ -4,6 +4,10 @@ import type { LLMProvider } from '../components/SettingsModal';
 // @ts-ignore
 const ipc = window.ipcRenderer;
 
+if (!ipc) {
+    console.warn('IPC Renderer not found. Database operations will fail. Are you running in a browser instead of Electron?');
+}
+
 export const dbService = {
     // Notebooks
     async getNotebooks(): Promise<Notebook[]> {

@@ -6,40 +6,50 @@ import Database from "better-sqlite3";
 import path from "path";
 let db;
 function initDb() {
+  console.log("Initializing database...");
   const dbPath = path.join(app.getPath("userData"), "notebook-lm.db");
+  console.log("Database path:", dbPath);
   db = new Database(dbPath);
-  db.exec(`
-        CREATE TABLE IF NOT EXISTS notebooks (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+  try {
+    db.exec(`
+            CREATE TABLE IF NOT EXISTS notebooks (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
 
-        CREATE TABLE IF NOT EXISTS sources (
-            id TEXT PRIMARY KEY,
-            notebook_id TEXT,
-            name TEXT,
-            type TEXT,
-            content TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
-        );
+            CREATE TABLE IF NOT EXISTS sources (
+                id TEXT PRIMARY KEY,
+                notebook_id TEXT,
+                name TEXT,
+                type TEXT,
+                content TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+            );
 
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            notebook_id TEXT,
-            role TEXT,
-            content TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
-        );
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                notebook_id TEXT,
+                role TEXT,
+                content TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+            );
 
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-    `);
-  db.pragma("foreign_keys = ON");
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        `);
+    db.pragma("foreign_keys = ON");
+    const nbCount = db.prepare("SELECT count(*) as count FROM notebooks").get();
+    const srcCount = db.prepare("SELECT count(*) as count FROM sources").get();
+    const msgCount = db.prepare("SELECT count(*) as count FROM messages").get();
+    console.log(`Database schema initialized. Rows: Notebooks=${nbCount.count}, Sources=${srcCount.count}, Messages=${msgCount.count}`);
+  } catch (error) {
+    console.error("Failed to initialize database schema:", error);
+  }
 }
 function getAllNotebooks() {
   return db.prepare("SELECT * FROM notebooks ORDER BY created_at DESC").all();
@@ -110,35 +120,47 @@ function createWindow() {
     win.loadFile(path$1.join(RENDERER_DIST, "index.html"));
   }
 }
-initDb();
 ipcMain.handle("db:get-notebooks", async () => {
-  return getAllNotebooks();
+  const res = getAllNotebooks();
+  console.log("db:get-notebooks", res.length, "notebooks found");
+  return res;
 });
 ipcMain.handle("db:create-notebook", async (_, id, name) => {
+  console.log("db:create-notebook", id, name);
   return createNotebook(id, name);
 });
 ipcMain.handle("db:update-notebook-name", async (_, id, name) => {
+  console.log("db:update-notebook-name", id, name);
   return updateNotebookName(id, name);
 });
 ipcMain.handle("db:delete-notebook", async (_, id) => {
+  console.log("db:delete-notebook", id);
   return deleteNotebook(id);
 });
 ipcMain.handle("db:get-sources", async (_, notebookId) => {
-  return getSourcesForNotebook(notebookId);
+  const res = getSourcesForNotebook(notebookId);
+  console.log("db:get-sources", notebookId, res.length, "sources found");
+  return res;
 });
 ipcMain.handle("db:save-source", async (_, source, notebookId) => {
+  console.log("db:save-source", notebookId, source.name);
   return saveSource(source, notebookId);
 });
 ipcMain.handle("db:delete-source", async (_, id) => {
+  console.log("db:delete-source", id);
   return deleteSource(id);
 });
 ipcMain.handle("db:get-messages", async (_, notebookId) => {
-  return getMessagesForNotebook(notebookId);
+  const res = getMessagesForNotebook(notebookId);
+  console.log("db:get-messages", notebookId, res.length, "messages found");
+  return res;
 });
 ipcMain.handle("db:save-message", async (_, notebookId, role, content) => {
+  console.log("db:save-message", notebookId, role, content.substring(0, 50));
   return saveMessage(notebookId, role, content);
 });
 ipcMain.handle("db:clear-messages", async (_, notebookId) => {
+  console.log("db:clear-messages", notebookId);
   return clearMessages(notebookId);
 });
 ipcMain.handle("db:save-setting", async (_, key, value) => {
@@ -187,7 +209,10 @@ app.on("activate", () => {
     createWindow();
   }
 });
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  initDb();
+  createWindow();
+});
 export {
   MAIN_DIST,
   RENDERER_DIST,

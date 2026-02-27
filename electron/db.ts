@@ -5,43 +5,55 @@ import { app } from 'electron';
 let db: Database.Database;
 
 export function initDb() {
+    console.log('Initializing database...');
     const dbPath = path.join(app.getPath('userData'), 'notebook-lm.db');
+    console.log('Database path:', dbPath);
     db = new Database(dbPath);
 
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS notebooks (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS notebooks (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
 
-        CREATE TABLE IF NOT EXISTS sources (
-            id TEXT PRIMARY KEY,
-            notebook_id TEXT,
-            name TEXT,
-            type TEXT,
-            content TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
-        );
+            CREATE TABLE IF NOT EXISTS sources (
+                id TEXT PRIMARY KEY,
+                notebook_id TEXT,
+                name TEXT,
+                type TEXT,
+                content TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+            );
 
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            notebook_id TEXT,
-            role TEXT,
-            content TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
-        );
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                notebook_id TEXT,
+                role TEXT,
+                content TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+            );
 
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-    `);
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        `);
 
-    // Enable foreign keys
-    db.pragma('foreign_keys = ON');
+        // Enable foreign keys
+        db.pragma('foreign_keys = ON');
+
+        const nbCount = db.prepare('SELECT count(*) as count FROM notebooks').get() as { count: number };
+        const srcCount = db.prepare('SELECT count(*) as count FROM sources').get() as { count: number };
+        const msgCount = db.prepare('SELECT count(*) as count FROM messages').get() as { count: number };
+
+        console.log(`Database schema initialized. Rows: Notebooks=${nbCount.count}, Sources=${srcCount.count}, Messages=${msgCount.count}`);
+    } catch (error) {
+        console.error('Failed to initialize database schema:', error);
+    }
 }
 
 // Notebook Operations
